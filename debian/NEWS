@@ -1,0 +1,7 @@
+pyjwt (1.5.3+ds1-1) unstable; urgency=medium
+
+  Commandline script was renamed by upstream from jwt to pyjwt, scripts
+  provided by Debian packages are renamed accordingly to pyjwt for Python 2
+  and pyjwt3 for Python 3.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Mon, 25 Sep 2017 01:56:05 +0200

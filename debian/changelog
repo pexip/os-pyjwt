@@ -1,0 +1,170 @@
+pyjwt (1.7.1-2) unstable; urgency=medium
+
+  * Team upload.
+  * Drop python2 support; Closes: #937463
+
+ -- Sandro Tosi <morph@debian.org>  Sat, 26 Oct 2019 20:17:32 -0400
+
+pyjwt (1.7.1-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * Use debhelper-compat instead of debian/compat.
+
+  [ Daniele Tricoli ]
+  * New upstream release. (Closes: #942241)
+  * Use my Debian email address.
+  * debian/control
+    - Bump debhelper-compat to 12.
+    - Bump Standards-Version to 4.4.1 (no changes needed).
+  * debian/copyright
+    - Update copyright years.
+  * debian/patches/0001-Fix-tests-to-work-with-pytest-3.9.0.patch
+    - Drop since no needed anymore.
+
+ -- Daniele Tricoli <eriol@debian.org>  Tue, 22 Oct 2019 02:58:08 +0200
+
+pyjwt (1.7.0-2) unstable; urgency=medium
+
+  * debian/tests/control
+    - Wrap Depends.
+    - Bump python{,3}-pytest version to >= 3.9.0.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Thu, 13 Dec 2018 02:09:40 +0100
+
+pyjwt (1.7.0-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * Convert git repository from git-dpm to gbp layout
+
+  [ Daniele Tricoli ]
+  * New upstream release.
+  * debian/control
+    - Bump python{,3}-pytest version to >= 3.9.0 in Build-Depends.
+    - Bump Standards-Version to 4.2.1 (no changes needed).
+  * debian/patches
+    - Add 0001-Fix-tests-to-work-with-pytest-3.9.0.patch. (Closes: #915200)
+  * debian/pyjwt.1
+    - Update release date.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Mon, 03 Dec 2018 01:52:54 +0100
+
+pyjwt (1.6.4-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * d/control: Set Vcs-* to salsa.debian.org
+  * d/copyright: Use https protocol in Format field
+  * d/watch: Use https protocol
+  * d/control: Remove ancient X-Python-Version field
+  * d/control: Remove ancient X-Python3-Version field
+
+  [ Daniele Tricoli ]
+  * New upstream release.
+  * No need to repack upstream tarball since bytecode is not included anymore.
+  * Update debhelper compat level to 11.
+  * debian/clean
+    - Add .pytest_cache.
+  * debian/control
+    - Bump python-all to >= 2.7 since upstream dropped Python 2.6 support.
+    - Bump Standards-Version to 4.1.5 (no changes needed).
+  * debian/copyright
+    - Update copyright years.
+  * debian/docs
+    - Update README extension. (Closes: #903187)
+  * debian/pyjwt.1
+    - Update manpage.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Tue, 10 Jul 2018 02:30:49 +0200
+
+pyjwt (1.5.3+ds1-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #875951)
+  * Acknowledge NMU. Thanks to Salvatore Bonaccorso.
+  * Remove bytecode from upstream tarball (via Files-Excluded in
+    debian/copyright).
+  * Add debian/NEWS.
+  * Remove shipped edd-info.
+  * Ignore precompiled bytecode.
+  * Rename commandline script to follow upstream naming.
+  * debian/control
+    - Add version constraint on python{,3}-pytest. (Closes: #868755)
+    - Add version constraint on python{,3}-cryptography
+    - Bump Standards-Version to 4.1.0 (no changes needed).
+    - Remove testsuite autopkgtest header since debian/tests/control file
+      exists.
+  * debian/copyright
+    - Update copyright years.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Mon, 25 Sep 2017 21:23:43 +0200
+
+pyjwt (1.4.2-1.1) unstable; urgency=medium
+
+  * Non-maintainer upload.
+  * Throw if key is an PKCS1 PEM-encoded public key (CVE-2017-11424)
+    (Closes: #873244)
+
+ -- Salvatore Bonaccorso <carnil@debian.org>  Sat, 16 Sep 2017 14:49:38 +0200
+
+pyjwt (1.4.2-1) unstable; urgency=medium
+
+  * New upstream release.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Fri, 09 Sep 2016 01:07:26 +0200
+
+pyjwt (1.4.1-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Run "as-installed" tests (DEP8).
+  * debian/patches/01_do-not-use-pytest-runner.patch
+    - Drop since python{,3}-pytest-runner is in Debian.
+  * debian/rules
+    - Make the build reproducible. (Closes: #828131, #831868)
+      Thanks to Chris Lamb for report and patch.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Thu, 21 Jul 2016 00:07:43 +0200
+
+pyjwt (1.4.0-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * Fixed VCS URL (https)
+
+  [ Daniele Tricoli ]
+  * New upstream release.
+  * debian/control
+    - Bump Standards-Version to 3.9.8 (no changes needed).
+    - Add python{,3}-pytest, python{,3}-pytest-cov and python{,3}-pytest-runner
+      to Build-Depends.
+  * debian/copyright
+    - Update copyright years.
+  * debian/rules
+    - Run tests at build time.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Sun, 08 May 2016 00:00:12 +0200
+
+pyjwt (1.3.0-1) unstable; urgency=medium
+
+  * New upstream release.
+    - Add a check so that asymmetric keys cannot be used as HMAC
+      secrets. See for more details:
+      https://auth0.com/blog/2015/03/31/critical-vulnerabilities-in-json-web-token-libraries/
+  * debian/control
+    - Update Homepage field.
+    - Add python{,3}-cryptography to Build-Depends and Recommends.
+      (Closes: #780630)
+    - Add python{,3}-crypto to Suggests.
+    - Bump Standards-Version to 3.9.6 (no changes needed).
+  * debian/copyright
+    - Update Upstream-Contact to reflect new upstream author.
+    - Update copyright years.
+  * debian/patches/01_do-not-use-pytest-runner.patch
+    - Remove pytest-runner form setup_requires since it's not packaged for
+      Debian yet.
+  * debian/watch
+    - Use pypi.debian.net redirector.
+
+ -- Daniele Tricoli <eriol@mornie.org>  Fri, 10 Jul 2015 02:12:06 +0200
+
+pyjwt (0.2.1-1) unstable; urgency=low
+
+  * Initial release (Closes: #755832)
+
+ -- Daniele Tricoli <eriol@mornie.org>  Fri, 29 Aug 2014 04:20:04 +0200

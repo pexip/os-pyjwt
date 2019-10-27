@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=jwt
+
+export PYTHONWARNINGS=d
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_build:
+	dh_auto_build
+	cp debian/pyjwt.1 debian/pyjwt3.1
+	sed -i 's/pyjwt/pyjwt3/g' debian/pyjwt3.1
+
+override_dh_auto_install:
+	find .pybuild -type f -name .coverage -delete
+	dh_auto_install
+	mv debian/python3-jwt/usr/bin/pyjwt debian/python3-jwt/usr/bin/pyjwt3

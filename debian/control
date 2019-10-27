@@ -1,0 +1,44 @@
+Source: pyjwt
+Section: python
+Priority: optional
+Maintainer: Debian Python Modules Team <python-modules-team@lists.alioth.debian.org>
+Uploaders: Daniele Tricoli <eriol@debian.org>
+Build-Depends:
+ debhelper-compat (= 12),
+ dh-python,
+ python3-all,
+ python3-cryptography (>= 1.4),
+ python3-pytest (>= 3.9.0),
+ python3-pytest-cov,
+ python3-pytest-runner,
+ python3-setuptools
+Standards-Version: 4.4.1
+Homepage: https://github.com/jpadilla/pyjwt
+Vcs-Git: https://salsa.debian.org/python-team/modules/pyjwt.git
+Vcs-Browser: https://salsa.debian.org/python-team/modules/pyjwt
+
+Package: python3-jwt
+Architecture: all
+Depends: ${misc:Depends}, ${python3:Depends}
+Recommends: python3-cryptography
+Suggests: python3-crypto
+Description: Python 3 implementation of JSON Web Token
+ PyJWT implements the JSON Web Token draft 01, a way of representing
+ signed content using JSON data structures.
+ .
+ Supported algorithms for cryptographic signing:
+ .
+   * HS256 - HMAC using SHA-256 hash algorithm (default)
+   * HS384 - HMAC using SHA-384 hash algorithm
+   * HS512 - HMAC using SHA-512 hash algorithm
+   * RS256 - RSASSA-PKCS1-v1_5 signature algorithm using SHA-256 hash
+     algorithm
+   * RS384 - RSASSA-PKCS1-v1_5 signature algorithm using SHA-384 hash
+     algorithm
+   * RS512 - RSASSA-PKCS1-v1_5 signature algorithm using SHA-512 hash
+     algorithm
+ .
+ Supported reserved claim names:
+   - "exp" (Expiration Time) Claim
+ .
+ This package contains the Python 3 version of the library.
