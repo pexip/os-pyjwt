@@ -4,11 +4,11 @@ Upstream-Contact: José Padilla <hello@jpadilla.com>
 Source: https://pypi.python.org/pypi/PyJWT
 
 Files: *
-Copyright: 2015 José Padilla
+Copyright: 2015-2022 José Padilla
 License: Expat
 
 Files: debian/*
-Copyright: 2014-19 Daniele Tricoli <eriol@debian.org>
+Copyright: 2014-2023 Daniele Tricoli <eriol@debian.org>
 License: Expat
 
 License: Expat

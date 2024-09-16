@@ -1,13 +1,21 @@
 
 [crypto]
-cryptography>=1.4
+cryptography>=3.4.0
 
-[flake8]
-flake8
-flake8-import-order
-pep8-naming
+[dev]
+sphinx<5.0.0,>=4.5.0
+sphinx-rtd-theme
+zope.interface
+cryptography>=3.4.0
+pytest<7.0.0,>=6.0.0
+coverage[toml]==5.0.4
+pre-commit
 
-[test]
-pytest<5.0.0,>=4.0.1
-pytest-cov<3.0.0,>=2.6.0
-pytest-runner<5.0.0,>=4.2
+[docs]
+sphinx<5.0.0,>=4.5.0
+sphinx-rtd-theme
+zope.interface
+
+[tests]
+pytest<7.0.0,>=6.0.0
+coverage[toml]==5.0.4

@@ -1,3 +1,74 @@
+pyjwt (2.6.0-1) unstable; urgency=medium
+
+  * New upstream version 2.6.0
+  * debian/control
+    - Add python3-exceptiongroup and python3-tomli to Build-Depends.
+  * debian/copyright
+    - Update copyright years.
+  * debian/tests/control
+    - Add python3-exceptiongroup and python3-tomli to Depends.
+
+ -- Daniele Tricoli <eriol@debian.org>  Tue, 03 Jan 2023 03:04:35 +0100
+
+pyjwt (2.4.0-2) unstable; urgency=medium
+
+  [ Debian Janitor ]
+  * Remove constraints unnecessary since buster
+
+ -- Jelmer Vernooĳ <jelmer@debian.org>  Mon, 17 Oct 2022 02:46:25 +0100
+
+pyjwt (2.4.0-1) unstable; urgency=medium
+
+  * New upstream version 2.4.0
+    - Fixes CVE-2022-29217 (Closes: #1011747)
+  * Enable salsa pipelines.
+  * Fix typo on debian/NEWS.
+  * debian/control
+    - Bump Standards-Version to 4.6.1 (no changes needed).
+  * debian/copyright
+    - Update copyright years.
+
+ -- Daniele Tricoli <eriol@debian.org>  Mon, 11 Jul 2022 17:16:24 +0200
+
+pyjwt (2.3.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release.
+
+ -- Thomas Goirand <zigo@debian.org>  Wed, 16 Feb 2022 09:33:52 +0100
+
+pyjwt (2.1.0-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * d/control: Update Maintainer field with new Debian Python Team
+    contact address.
+  * d/control: Update Vcs-* fields with new Debian Python Team Salsa
+    layout.
+
+  [ Debian Janitor ]
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse.
+  * Update standards version to 4.5.0, no changes needed.
+
+  [ Daniele Tricoli ]
+  * New upstream version 2.1.0. (Closes: #989637)
+  * Drop man page since upstream dropped CLI entrypoint.
+  * debian/changelog
+    - Format changelog to not go over 80 columns.
+  * debian/control
+    - Bump debhelper compatibility to 13.
+    - Bump Standards-Version to 4.5.1 (no changes needed).
+  * debian/copyright
+    - Update copyright years.
+  * debian/NEWS
+    - Add news entry about dropped CLI.
+  * debian/tests/python3-jwt
+    - Use supported python versions during tests.
+  * debian/watch
+    - Bump d/watch version to 4.
+
+ -- Daniele Tricoli <eriol@debian.org>  Fri, 20 Aug 2021 02:13:42 +0200
+
 pyjwt (1.7.1-2pexip1) pexip; urgency=medium
 
   * Prepare Pexip packaging
