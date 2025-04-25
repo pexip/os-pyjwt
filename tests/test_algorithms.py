@@ -1,9 +1,10 @@
 import base64
 import json
+from typing import Any, cast
 
 import pytest
 
-from jwt.algorithms import Algorithm, HMACAlgorithm, NoneAlgorithm, has_crypto
+from jwt.algorithms import HMACAlgorithm, NoneAlgorithm, has_crypto
 from jwt.exceptions import InvalidKeyError
 from jwt.utils import base64url_decode
 
@@ -11,51 +12,50 @@ from .keys import load_ec_pub_key_p_521, load_hmac_key, load_rsa_pub_key
 from .utils import crypto_required, key_path
 
 if has_crypto:
+    from cryptography.hazmat.primitives.asymmetric.ec import (
+        EllipticCurvePrivateKey,
+        EllipticCurvePublicKey,
+    )
+    from cryptography.hazmat.primitives.asymmetric.ed448 import (
+        Ed448PrivateKey,
+        Ed448PublicKey,
+    )
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+        Ed25519PrivateKey,
+        Ed25519PublicKey,
+    )
+    from cryptography.hazmat.primitives.asymmetric.rsa import (
+        RSAPrivateKey,
+        RSAPublicKey,
+    )
+
     from jwt.algorithms import ECAlgorithm, OKPAlgorithm, RSAAlgorithm, RSAPSSAlgorithm
 
 
 class TestAlgorithms:
-    def test_algorithm_should_throw_exception_if_prepare_key_not_impl(self):
-        algo = Algorithm()
-
-        with pytest.raises(NotImplementedError):
-            algo.prepare_key("test")
-
-    def test_algorithm_should_throw_exception_if_sign_not_impl(self):
-        algo = Algorithm()
-
-        with pytest.raises(NotImplementedError):
-            algo.sign("message", "key")
-
-    def test_algorithm_should_throw_exception_if_verify_not_impl(self):
-        algo = Algorithm()
-
-        with pytest.raises(NotImplementedError):
-            algo.verify("message", "key", "signature")
-
-    def test_algorithm_should_throw_exception_if_to_jwk_not_impl(self):
-        algo = Algorithm()
-
-        with pytest.raises(NotImplementedError):
-            algo.from_jwk("value")
-
-    def test_algorithm_should_throw_exception_if_from_jwk_not_impl(self):
-        algo = Algorithm()
-
-        with pytest.raises(NotImplementedError):
-            algo.to_jwk("value")
-
     def test_none_algorithm_should_throw_exception_if_key_is_not_none(self):
         algo = NoneAlgorithm()
 
         with pytest.raises(InvalidKeyError):
             algo.prepare_key("123")
 
+    def test_none_algorithm_should_throw_exception_on_to_jwk(self):
+        algo = NoneAlgorithm()
+
+        with pytest.raises(NotImplementedError):
+            algo.to_jwk("dummy")  # Using a dummy argument as is it not relevant
+
+    def test_none_algorithm_should_throw_exception_on_from_jwk(self):
+        algo = NoneAlgorithm()
+
+        with pytest.raises(NotImplementedError):
+            algo.from_jwk({})  # Using a dummy argument as is it not relevant
+
     def test_hmac_should_reject_nonstring_key(self):
         algo = HMACAlgorithm(HMACAlgorithm.SHA256)
 
         with pytest.raises(TypeError) as context:
-            algo.prepare_key(object())
+            algo.prepare_key(object())  # type: ignore[arg-type]
 
         exception = context.value
         assert str(exception) == "Expected a string value"
@@ -91,16 +91,27 @@ class TestAlgorithms:
         signature = algo.sign(b"Hello World!", key)
         assert algo.verify(b"Hello World!", key, signature)
 
-    def test_hmac_to_jwk_returns_correct_values(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_hmac_to_jwk_returns_correct_values(self, as_dict):
         algo = HMACAlgorithm(HMACAlgorithm.SHA256)
-        key = algo.to_jwk("secret")
+        key: Any = algo.to_jwk("secret", as_dict=as_dict)
 
-        assert json.loads(key) == {"kty": "oct", "k": "c2VjcmV0"}
+        if not as_dict:
+            key = json.loads(key)
+
+        assert key == {"kty": "oct", "k": "c2VjcmV0"}
 
     def test_hmac_from_jwk_should_raise_exception_if_not_hmac_key(self):
         algo = HMACAlgorithm(HMACAlgorithm.SHA256)
 
         with open(key_path("jwk_rsa_pub.json")) as keyfile:
+            with pytest.raises(InvalidKeyError):
+                algo.from_jwk(keyfile.read())
+
+    def test_hmac_from_jwk_should_raise_exception_if_empty_json(self):
+        algo = HMACAlgorithm(HMACAlgorithm.SHA256)
+
+        with open(key_path("jwk_empty.json")) as keyfile:
             with pytest.raises(InvalidKeyError):
                 algo.from_jwk(keyfile.read())
 
@@ -130,7 +141,7 @@ class TestAlgorithms:
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with pytest.raises(TypeError):
-            algo.prepare_key(None)
+            algo.prepare_key(None)  # type: ignore[arg-type]
 
     @crypto_required
     def test_rsa_verify_should_return_false_if_signature_invalid(self):
@@ -150,7 +161,7 @@ class TestAlgorithms:
         sig += b"123"  # Signature is now invalid
 
         with open(key_path("testkey_rsa.pub")) as keyfile:
-            pub_key = algo.prepare_key(keyfile.read())
+            pub_key = cast(RSAPublicKey, algo.prepare_key(keyfile.read()))
 
         result = algo.verify(message, pub_key, sig)
         assert not result
@@ -163,14 +174,14 @@ class TestAlgorithms:
             "P-521": ECAlgorithm.SHA512,
             "secp256k1": ECAlgorithm.SHA256,
         }
-        for (curve, hash) in tests.items():
+        for curve, hash in tests.items():
             algo = ECAlgorithm(hash)
 
             with open(key_path(f"jwk_ec_pub_{curve}.json")) as keyfile:
-                pub_key = algo.from_jwk(keyfile.read())
+                pub_key = cast(EllipticCurvePublicKey, algo.from_jwk(keyfile.read()))
 
             with open(key_path(f"jwk_ec_key_{curve}.json")) as keyfile:
-                priv_key = algo.from_jwk(keyfile.read())
+                priv_key = cast(EllipticCurvePrivateKey, algo.from_jwk(keyfile.read()))
 
             signature = algo.sign(b"Hello World!", priv_key)
             assert algo.verify(b"Hello World!", pub_key, signature)
@@ -230,7 +241,7 @@ class TestAlgorithms:
                 )
 
         # EC private key length invalid
-        for (curve, point) in valid_points.items():
+        for curve, point in valid_points.items():
             with pytest.raises(InvalidKeyError):
                 algo.from_jwk(
                     f'{{"kty": "EC", "crv": "{curve}", "x": "{point["x"]}", "y": "{point["y"]}", "d": "dGVzdA=="}}'
@@ -241,9 +252,9 @@ class TestAlgorithms:
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
         with open(key_path("testkey_ec.priv")) as ec_key:
-            orig_key = algo.prepare_key(ec_key.read())
+            orig_key = cast(EllipticCurvePrivateKey, algo.prepare_key(ec_key.read()))
 
-        parsed_key = algo.from_jwk(algo.to_jwk(orig_key))
+        parsed_key = cast(EllipticCurvePrivateKey, algo.from_jwk(algo.to_jwk(orig_key)))
         assert parsed_key.private_numbers() == orig_key.private_numbers()
         assert (
             parsed_key.private_numbers().public_numbers
@@ -255,19 +266,23 @@ class TestAlgorithms:
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
         with open(key_path("testkey_ec.pub")) as ec_key:
-            orig_key = algo.prepare_key(ec_key.read())
+            orig_key = cast(EllipticCurvePublicKey, algo.prepare_key(ec_key.read()))
 
-        parsed_key = algo.from_jwk(algo.to_jwk(orig_key))
+        parsed_key = cast(EllipticCurvePublicKey, algo.from_jwk(algo.to_jwk(orig_key)))
         assert parsed_key.public_numbers() == orig_key.public_numbers()
 
     @crypto_required
-    def test_ec_to_jwk_returns_correct_values_for_public_key(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_ec_to_jwk_returns_correct_values_for_public_key(self, as_dict):
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
         with open(key_path("testkey_ec.pub")) as keyfile:
             pub_key = algo.prepare_key(keyfile.read())
 
-        key = algo.to_jwk(pub_key)
+        key: Any = algo.to_jwk(pub_key, as_dict=as_dict)
+
+        if not as_dict:
+            key = json.loads(key)
 
         expected = {
             "kty": "EC",
@@ -276,16 +291,20 @@ class TestAlgorithms:
             "y": "t2G02kbWiOqimYfQAfnARdp2CTycsJPhwA8rn1Cn0SQ",
         }
 
-        assert json.loads(key) == expected
+        assert key == expected
 
     @crypto_required
-    def test_ec_to_jwk_returns_correct_values_for_private_key(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_ec_to_jwk_returns_correct_values_for_private_key(self, as_dict):
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
         with open(key_path("testkey_ec.priv")) as keyfile:
             priv_key = algo.prepare_key(keyfile.read())
 
-        key = algo.to_jwk(priv_key)
+        key: Any = algo.to_jwk(priv_key, as_dict=as_dict)
+
+        if not as_dict:
+            key = json.loads(key)
 
         expected = {
             "kty": "EC",
@@ -295,33 +314,44 @@ class TestAlgorithms:
             "d": "2nninfu2jMHDwAbn9oERUhRADS6duQaJEadybLaa0YQ",
         }
 
-        assert json.loads(key) == expected
+        assert key == expected
 
     @crypto_required
     def test_ec_to_jwk_raises_exception_on_invalid_key(self):
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
         with pytest.raises(InvalidKeyError):
-            algo.to_jwk({"not": "a valid key"})
+            algo.to_jwk({"not": "a valid key"})  # type: ignore[call-overload]
 
     @crypto_required
-    def test_ec_to_jwk_with_valid_curves(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_ec_to_jwk_with_valid_curves(self, as_dict):
         tests = {
             "P-256": ECAlgorithm.SHA256,
             "P-384": ECAlgorithm.SHA384,
             "P-521": ECAlgorithm.SHA512,
             "secp256k1": ECAlgorithm.SHA256,
         }
-        for (curve, hash) in tests.items():
+        for curve, hash in tests.items():
             algo = ECAlgorithm(hash)
 
             with open(key_path(f"jwk_ec_pub_{curve}.json")) as keyfile:
                 pub_key = algo.from_jwk(keyfile.read())
-                assert json.loads(algo.to_jwk(pub_key))["crv"] == curve
+                jwk: Any = algo.to_jwk(pub_key, as_dict=as_dict)
+
+                if not as_dict:
+                    jwk = json.loads(jwk)
+
+                assert jwk["crv"] == curve
 
             with open(key_path(f"jwk_ec_key_{curve}.json")) as keyfile:
                 priv_key = algo.from_jwk(keyfile.read())
-                assert json.loads(algo.to_jwk(priv_key))["crv"] == curve
+                jwk = algo.to_jwk(priv_key, as_dict=as_dict)
+
+                if not as_dict:
+                    jwk = json.loads(jwk)
+
+                assert jwk["crv"] == curve
 
     @crypto_required
     def test_ec_to_jwk_with_invalid_curve(self):
@@ -338,10 +368,10 @@ class TestAlgorithms:
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with open(key_path("jwk_rsa_pub.json")) as keyfile:
-            pub_key = algo.from_jwk(keyfile.read())
+            pub_key = cast(RSAPublicKey, algo.from_jwk(keyfile.read()))
 
         with open(key_path("jwk_rsa_key.json")) as keyfile:
-            priv_key = algo.from_jwk(keyfile.read())
+            priv_key = cast(RSAPrivateKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", priv_key)
         assert algo.verify(b"Hello World!", pub_key, signature)
@@ -351,9 +381,9 @@ class TestAlgorithms:
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with open(key_path("testkey_rsa.priv")) as rsa_key:
-            orig_key = algo.prepare_key(rsa_key.read())
+            orig_key = cast(RSAPrivateKey, algo.prepare_key(rsa_key.read()))
 
-        parsed_key = algo.from_jwk(algo.to_jwk(orig_key))
+        parsed_key = cast(RSAPrivateKey, algo.from_jwk(algo.to_jwk(orig_key)))
         assert parsed_key.private_numbers() == orig_key.private_numbers()
         assert (
             parsed_key.private_numbers().public_numbers
@@ -365,9 +395,9 @@ class TestAlgorithms:
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with open(key_path("testkey_rsa.pub")) as rsa_key:
-            orig_key = algo.prepare_key(rsa_key.read())
+            orig_key = cast(RSAPublicKey, algo.prepare_key(rsa_key.read()))
 
-        parsed_key = algo.from_jwk(algo.to_jwk(orig_key))
+        parsed_key = cast(RSAPublicKey, algo.from_jwk(algo.to_jwk(orig_key)))
         assert parsed_key.public_numbers() == orig_key.public_numbers()
 
     @crypto_required
@@ -398,14 +428,16 @@ class TestAlgorithms:
 
         with open(key_path("jwk_rsa_key.json")) as keyfile:
             keybytes = keyfile.read()
-            control_key = algo.from_jwk(keybytes).private_numbers()
+            control_key = cast(RSAPrivateKey, algo.from_jwk(keybytes)).private_numbers()
 
             keydata = json.loads(keybytes)
             delete_these = ["p", "q", "dp", "dq", "qi"]
             for field in delete_these:
                 del keydata[field]
 
-            parsed_key = algo.from_jwk(json.dumps(keydata)).private_numbers()
+            parsed_key = cast(
+                RSAPrivateKey, algo.from_jwk(json.dumps(keydata))
+            ).private_numbers()
 
         assert control_key.d == parsed_key.d
         assert control_key.p == parsed_key.p
@@ -438,13 +470,17 @@ class TestAlgorithms:
             algo.from_jwk('{"kty": "RSA"}')
 
     @crypto_required
-    def test_rsa_to_jwk_returns_correct_values_for_public_key(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_rsa_to_jwk_returns_correct_values_for_public_key(self, as_dict):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with open(key_path("testkey_rsa.pub")) as keyfile:
             pub_key = algo.prepare_key(keyfile.read())
 
-        key = algo.to_jwk(pub_key)
+        key: Any = algo.to_jwk(pub_key, as_dict=as_dict)
+
+        if not as_dict:
+            key = json.loads(key)
 
         expected = {
             "e": "AQAB",
@@ -459,16 +495,20 @@ class TestAlgorithms:
                 "sNruF3ogJWNq1Lyn_ijPQnkPLpZHyhvuiycYcI3DiQ"
             ),
         }
-        assert json.loads(key) == expected
+        assert key == expected
 
     @crypto_required
-    def test_rsa_to_jwk_returns_correct_values_for_private_key(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_rsa_to_jwk_returns_correct_values_for_private_key(self, as_dict):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with open(key_path("testkey_rsa.priv")) as keyfile:
             priv_key = algo.prepare_key(keyfile.read())
 
-        key = algo.to_jwk(priv_key)
+        key: Any = algo.to_jwk(priv_key, as_dict=as_dict)
+
+        if not as_dict:
+            key = json.loads(key)
 
         expected = {
             "key_ops": ["sign"],
@@ -516,14 +556,14 @@ class TestAlgorithms:
                 "AuKhin-kc4mh9ssDXRQZwlMymZP0QtaxUDw_nlfVrUCZgO7L1_ZsUTk"
             ),
         }
-        assert json.loads(key) == expected
+        assert key == expected
 
     @crypto_required
     def test_rsa_to_jwk_raises_exception_on_invalid_key(self):
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
 
         with pytest.raises(InvalidKeyError):
-            algo.to_jwk({"not": "a valid key"})
+            algo.to_jwk({"not": "a valid key"})  # type: ignore[call-overload]
 
     @crypto_required
     def test_rsa_from_jwk_raises_exception_on_invalid_key(self):
@@ -538,7 +578,7 @@ class TestAlgorithms:
         algo = ECAlgorithm(ECAlgorithm.SHA256)
 
         with pytest.raises(TypeError):
-            algo.prepare_key(None)
+            algo.prepare_key(None)  # type: ignore[arg-type]
 
     @crypto_required
     def test_ec_should_accept_pem_private_key_bytes(self):
@@ -608,11 +648,11 @@ class TestAlgorithms:
         message = b"Hello World!"
 
         with open(key_path("testkey_rsa.priv")) as keyfile:
-            priv_key = algo.prepare_key(keyfile.read())
+            priv_key = cast(RSAPrivateKey, algo.prepare_key(keyfile.read()))
             sig = algo.sign(message, priv_key)
 
         with open(key_path("testkey_rsa.pub")) as keyfile:
-            pub_key = algo.prepare_key(keyfile.read())
+            pub_key = cast(RSAPublicKey, algo.prepare_key(keyfile.read()))
 
         result = algo.verify(message, pub_key, sig)
         assert result
@@ -635,7 +675,7 @@ class TestAlgorithms:
         jwt_sig += b"123"  # Signature is now invalid
 
         with open(key_path("testkey_rsa.pub")) as keyfile:
-            jwt_pub_key = algo.prepare_key(keyfile.read())
+            jwt_pub_key = cast(RSAPublicKey, algo.prepare_key(keyfile.read()))
 
         result = algo.verify(jwt_message, jwt_pub_key, jwt_sig)
         assert not result
@@ -696,7 +736,7 @@ class TestAlgorithmsRFC7520:
         )
 
         algo = RSAAlgorithm(RSAAlgorithm.SHA256)
-        key = algo.prepare_key(load_rsa_pub_key())
+        key = cast(RSAPublicKey, algo.prepare_key(load_rsa_pub_key()))
 
         result = algo.verify(signing_input, key, signature)
         assert result
@@ -727,7 +767,7 @@ class TestAlgorithmsRFC7520:
         )
 
         algo = RSAPSSAlgorithm(RSAPSSAlgorithm.SHA384)
-        key = algo.prepare_key(load_rsa_pub_key())
+        key = cast(RSAPublicKey, algo.prepare_key(load_rsa_pub_key()))
 
         result = algo.verify(signing_input, key, signature)
         assert result
@@ -777,19 +817,13 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with pytest.raises(InvalidKeyError):
-            algo.prepare_key(None)
+            algo.prepare_key(None)  # type: ignore[arg-type]
 
         with open(key_path("testkey_ed25519")) as keyfile:
             algo.prepare_key(keyfile.read())
 
         with open(key_path("testkey_ed25519.pub")) as keyfile:
             algo.prepare_key(keyfile.read())
-
-    def test_okp_ed25519_should_accept_unicode_key(self):
-        algo = OKPAlgorithm()
-
-        with open(key_path("testkey_ed25519")) as ec_key:
-            algo.prepare_key(ec_key.read())
 
     def test_okp_ed25519_sign_should_generate_correct_signature_value(self):
         algo = OKPAlgorithm()
@@ -799,10 +833,10 @@ class TestOKPAlgorithms:
         expected_sig = base64.b64decode(self.hello_world_sig)
 
         with open(key_path("testkey_ed25519")) as keyfile:
-            jwt_key = algo.prepare_key(keyfile.read())
+            jwt_key = cast(Ed25519PrivateKey, algo.prepare_key(keyfile.read()))
 
         with open(key_path("testkey_ed25519.pub")) as keyfile:
-            jwt_pub_key = algo.prepare_key(keyfile.read())
+            jwt_pub_key = cast(Ed25519PublicKey, algo.prepare_key(keyfile.read()))
 
         algo.sign(jwt_message, jwt_key)
         result = algo.verify(jwt_message, jwt_pub_key, expected_sig)
@@ -847,7 +881,7 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed25519.json")) as keyfile:
-            key = algo.from_jwk(keyfile.read())
+            key = cast(Ed25519PrivateKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", key)
         assert algo.verify(b"Hello World!", key.public_key(), signature)
@@ -858,7 +892,7 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed25519.json")) as keyfile:
-            key = algo.from_jwk(keyfile.read())
+            key = cast(Ed25519PrivateKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", key)
         assert algo.verify(b"Hello World!", key, signature)
@@ -867,10 +901,10 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed25519.json")) as keyfile:
-            priv_key = algo.from_jwk(keyfile.read())
+            priv_key = cast(Ed25519PrivateKey, algo.from_jwk(keyfile.read()))
 
         with open(key_path("jwk_okp_pub_Ed25519.json")) as keyfile:
-            pub_key = algo.from_jwk(keyfile.read())
+            pub_key = cast(Ed25519PublicKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", priv_key)
         assert algo.verify(b"Hello World!", pub_key, signature)
@@ -885,7 +919,7 @@ class TestOKPAlgorithms:
 
         # Invalid instance type
         with pytest.raises(InvalidKeyError):
-            algo.from_jwk(123)
+            algo.from_jwk(123)  # type: ignore[arg-type]
 
         # Invalid JSON
         with pytest.raises(InvalidKeyError):
@@ -927,19 +961,20 @@ class TestOKPAlgorithms:
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-    def test_okp_ed25519_to_jwk_works_with_from_jwk(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_okp_ed25519_to_jwk_works_with_from_jwk(self, as_dict):
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed25519.json")) as keyfile:
-            priv_key_1 = algo.from_jwk(keyfile.read())
+            priv_key_1 = cast(Ed25519PrivateKey, algo.from_jwk(keyfile.read()))
 
         with open(key_path("jwk_okp_pub_Ed25519.json")) as keyfile:
-            pub_key_1 = algo.from_jwk(keyfile.read())
+            pub_key_1 = cast(Ed25519PublicKey, algo.from_jwk(keyfile.read()))
 
-        pub = algo.to_jwk(pub_key_1)
+        pub = algo.to_jwk(pub_key_1, as_dict=as_dict)
         pub_key_2 = algo.from_jwk(pub)
-        pri = algo.to_jwk(priv_key_1)
-        priv_key_2 = algo.from_jwk(pri)
+        pri = algo.to_jwk(priv_key_1, as_dict=as_dict)
+        priv_key_2 = cast(Ed25519PrivateKey, algo.from_jwk(pri))
 
         signature_1 = algo.sign(b"Hello World!", priv_key_1)
         signature_2 = algo.sign(b"Hello World!", priv_key_2)
@@ -950,13 +985,13 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with pytest.raises(InvalidKeyError):
-            algo.to_jwk({"not": "a valid key"})
+            algo.to_jwk({"not": "a valid key"})  # type: ignore[call-overload]
 
     def test_okp_ed448_jwk_private_key_should_parse_and_verify(self):
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed448.json")) as keyfile:
-            key = algo.from_jwk(keyfile.read())
+            key = cast(Ed448PrivateKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", key)
         assert algo.verify(b"Hello World!", key.public_key(), signature)
@@ -967,7 +1002,7 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed448.json")) as keyfile:
-            key = algo.from_jwk(keyfile.read())
+            key = cast(Ed448PrivateKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", key)
         assert algo.verify(b"Hello World!", key, signature)
@@ -976,10 +1011,10 @@ class TestOKPAlgorithms:
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed448.json")) as keyfile:
-            priv_key = algo.from_jwk(keyfile.read())
+            priv_key = cast(Ed448PrivateKey, algo.from_jwk(keyfile.read()))
 
         with open(key_path("jwk_okp_pub_Ed448.json")) as keyfile:
-            pub_key = algo.from_jwk(keyfile.read())
+            pub_key = cast(Ed448PublicKey, algo.from_jwk(keyfile.read()))
 
         signature = algo.sign(b"Hello World!", priv_key)
         assert algo.verify(b"Hello World!", pub_key, signature)
@@ -994,7 +1029,7 @@ class TestOKPAlgorithms:
 
         # Invalid instance type
         with pytest.raises(InvalidKeyError):
-            algo.from_jwk(123)
+            algo.from_jwk(123)  # type: ignore[arg-type]
 
         # Invalid JSON
         with pytest.raises(InvalidKeyError):
@@ -1036,21 +1071,50 @@ class TestOKPAlgorithms:
         with pytest.raises(InvalidKeyError):
             algo.from_jwk(v)
 
-    def test_okp_ed448_to_jwk_works_with_from_jwk(self):
+    @pytest.mark.parametrize("as_dict", (False, True))
+    def test_okp_ed448_to_jwk_works_with_from_jwk(self, as_dict):
         algo = OKPAlgorithm()
 
         with open(key_path("jwk_okp_key_Ed448.json")) as keyfile:
-            priv_key_1 = algo.from_jwk(keyfile.read())
+            priv_key_1 = cast(Ed448PrivateKey, algo.from_jwk(keyfile.read()))
 
         with open(key_path("jwk_okp_pub_Ed448.json")) as keyfile:
-            pub_key_1 = algo.from_jwk(keyfile.read())
+            pub_key_1 = cast(Ed448PublicKey, algo.from_jwk(keyfile.read()))
 
-        pub = algo.to_jwk(pub_key_1)
+        pub = algo.to_jwk(pub_key_1, as_dict=as_dict)
         pub_key_2 = algo.from_jwk(pub)
-        pri = algo.to_jwk(priv_key_1)
-        priv_key_2 = algo.from_jwk(pri)
+        pri = algo.to_jwk(priv_key_1, as_dict=as_dict)
+        priv_key_2 = cast(Ed448PrivateKey, algo.from_jwk(pri))
 
         signature_1 = algo.sign(b"Hello World!", priv_key_1)
         signature_2 = algo.sign(b"Hello World!", priv_key_2)
         assert algo.verify(b"Hello World!", pub_key_2, signature_1)
         assert algo.verify(b"Hello World!", pub_key_2, signature_2)
+
+    @crypto_required
+    def test_rsa_can_compute_digest(self):
+        # this is the well-known sha256 hash of "foo"
+        foo_hash = base64.b64decode(b"LCa0a2j/xo/5m0U8HTBBNBNCLXBkg7+g+YpeiGJm564=")
+
+        algo = RSAAlgorithm(RSAAlgorithm.SHA256)
+        computed_hash = algo.compute_hash_digest(b"foo")
+        assert computed_hash == foo_hash
+
+    def test_hmac_can_compute_digest(self):
+        # this is the well-known sha256 hash of "foo"
+        foo_hash = base64.b64decode(b"LCa0a2j/xo/5m0U8HTBBNBNCLXBkg7+g+YpeiGJm564=")
+
+        algo = HMACAlgorithm(HMACAlgorithm.SHA256)
+        computed_hash = algo.compute_hash_digest(b"foo")
+        assert computed_hash == foo_hash
+
+    @crypto_required
+    def test_rsa_prepare_key_raises_invalid_key_error_on_invalid_pem(self):
+        algo = RSAAlgorithm(RSAAlgorithm.SHA256)
+        invalid_key = "invalid key"
+
+        with pytest.raises(InvalidKeyError) as excinfo:
+            algo.prepare_key(invalid_key)
+
+        # Check that the exception message is correct
+        assert "Could not parse the provided public key." in str(excinfo.value)

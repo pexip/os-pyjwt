@@ -14,6 +14,8 @@ from jwt.exceptions import (
     InvalidAudienceError,
     InvalidIssuedAtError,
     InvalidIssuerError,
+    InvalidJTIError,
+    InvalidSubjectError,
     MissingRequiredClaimError,
 )
 from jwt.utils import base64url_decode
@@ -160,13 +162,12 @@ class TestJWT:
         assert str(exception) == "Invalid claim format in token"
 
     def test_encode_bad_type(self, jwt):
-
         types = ["string", tuple(), list(), 42, set()]
 
         for t in types:
             pytest.raises(
                 TypeError,
-                lambda: jwt.encode(t, "secret", algorithms=["HS256"]),
+                lambda t=t: jwt.encode(t, "secret", algorithms=["HS256"]),
             )
 
     def test_encode_with_typ(self, jwt):
@@ -226,6 +227,13 @@ class TestJWT:
 
         with pytest.raises(ImmatureSignatureError):
             jwt.decode(jwt_message, secret, algorithms=["HS256"])
+
+    def test_decode_works_if_iat_is_str_of_a_number(self, jwt, payload):
+        payload["iat"] = "1638202770"
+        secret = "secret"
+        jwt_message = jwt.encode(payload, secret)
+        data = jwt.decode(jwt_message, secret, algorithms=["HS256"])
+        assert data["iat"] == "1638202770"
 
     def test_decode_raises_exception_if_nbf_is_not_int(self, jwt):
         # >>> jwt.encode({'nbf': 'not-an-int'}, 'secret')
@@ -359,8 +367,8 @@ class TestJWT:
         secret = "secret"
         jwt_message = jwt.encode(payload, secret)
 
-        # With 3 seconds leeway, should be ok
-        for leeway in (3, timedelta(seconds=3)):
+        # With 5 seconds leeway, should be ok
+        for leeway in (5, timedelta(seconds=5)):
             decoded = jwt.decode(
                 jwt_message, secret, leeway=leeway, algorithms=["HS256"]
             )
@@ -431,9 +439,7 @@ class TestJWT:
         payload = {"some": "payload", "aud": ["urn:me", "urn:someone-else"]}
         token = jwt.encode(payload, "secret")
         with pytest.raises(InvalidAudienceError):
-            jwt.decode(
-                token, "secret", audience="urn:me".encode(), algorithms=["HS256"]
-            )
+            jwt.decode(token, "secret", audience=b"urn:me", algorithms=["HS256"])
 
     def test_raise_exception_invalid_audience_in_array(self, jwt):
         payload = {
@@ -457,6 +463,16 @@ class TestJWT:
             jwt.decode(token, "secret", issuer=issuer, algorithms=["HS256"])
 
         assert exc.value.claim == "iss"
+
+    def test_rasise_exception_on_partial_issuer_match(self, jwt):
+        issuer = "urn:expected"
+
+        payload = {"iss": "urn:"}
+
+        token = jwt.encode(payload, "secret")
+
+        with pytest.raises(InvalidIssuerError):
+            jwt.decode(token, "secret", issuer=issuer, algorithms=["HS256"])
 
     def test_raise_exception_token_without_audience(self, jwt):
         payload = {"some": "payload"}
@@ -482,8 +498,24 @@ class TestJWT:
         token = jwt.encode(payload, "secret")
         jwt.decode(token, "secret", issuer=issuer, algorithms=["HS256"])
 
+    def test_check_issuer_list_when_valid(self, jwt):
+        issuer = ["urn:foo", "urn:bar"]
+        payload = {"some": "payload", "iss": "urn:foo"}
+        token = jwt.encode(payload, "secret")
+        jwt.decode(token, "secret", issuer=issuer, algorithms=["HS256"])
+
     def test_raise_exception_invalid_issuer(self, jwt):
         issuer = "urn:wrong"
+
+        payload = {"some": "payload", "iss": "urn:foo"}
+
+        token = jwt.encode(payload, "secret")
+
+        with pytest.raises(InvalidIssuerError):
+            jwt.decode(token, "secret", issuer=issuer, algorithms=["HS256"])
+
+    def test_raise_exception_invalid_issuer_list(self, jwt):
+        issuer = ["urn:wrong", "urn:bar", "urn:baz"]
 
         payload = {"some": "payload", "iss": "urn:foo"}
 
@@ -717,3 +749,197 @@ class TestJWT:
             jwt.decode_complete(jwt_message, secret, algorithms=["HS256"], foo="bar")
         assert len(record) == 1
         assert "foo" in str(record[0].message)
+
+    def test_decode_strict_aud_forbids_list_audience(self, jwt, payload):
+        secret = "secret"
+        payload["aud"] = "urn:foo"
+        jwt_message = jwt.encode(payload, secret)
+
+        # Decodes without `strict_aud`.
+        jwt.decode(
+            jwt_message,
+            secret,
+            audience=["urn:foo", "urn:bar"],
+            options={"strict_aud": False},
+            algorithms=["HS256"],
+        )
+
+        # Fails with `strict_aud`.
+        with pytest.raises(InvalidAudienceError, match=r"Invalid audience \(strict\)"):
+            jwt.decode(
+                jwt_message,
+                secret,
+                audience=["urn:foo", "urn:bar"],
+                options={"strict_aud": True},
+                algorithms=["HS256"],
+            )
+
+    def test_decode_strict_aud_forbids_list_claim(self, jwt, payload):
+        secret = "secret"
+        payload["aud"] = ["urn:foo", "urn:bar"]
+        jwt_message = jwt.encode(payload, secret)
+
+        # Decodes without `strict_aud`.
+        jwt.decode(
+            jwt_message,
+            secret,
+            audience="urn:foo",
+            options={"strict_aud": False},
+            algorithms=["HS256"],
+        )
+
+        # Fails with `strict_aud`.
+        with pytest.raises(
+            InvalidAudienceError, match=r"Invalid claim format in token \(strict\)"
+        ):
+            jwt.decode(
+                jwt_message,
+                secret,
+                audience="urn:foo",
+                options={"strict_aud": True},
+                algorithms=["HS256"],
+            )
+
+    def test_decode_strict_aud_does_not_match(self, jwt, payload):
+        secret = "secret"
+        payload["aud"] = "urn:foo"
+        jwt_message = jwt.encode(payload, secret)
+
+        with pytest.raises(
+            InvalidAudienceError, match=r"Audience doesn't match \(strict\)"
+        ):
+            jwt.decode(
+                jwt_message,
+                secret,
+                audience="urn:bar",
+                options={"strict_aud": True},
+                algorithms=["HS256"],
+            )
+
+    def test_decode_strict_ok(self, jwt, payload):
+        secret = "secret"
+        payload["aud"] = "urn:foo"
+        jwt_message = jwt.encode(payload, secret)
+
+        jwt.decode(
+            jwt_message,
+            secret,
+            audience="urn:foo",
+            options={"strict_aud": True},
+            algorithms=["HS256"],
+        )
+
+    # -------------------- Sub Claim Tests --------------------
+
+    def test_encode_decode_sub_claim(self, jwt):
+        payload = {
+            "sub": "user123",
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+        decoded = jwt.decode(token, secret, algorithms=["HS256"])
+
+        assert decoded["sub"] == "user123"
+
+    def test_decode_without_and_not_required_sub_claim(self, jwt):
+        secret = "your-256-bit-secret"
+        token = jwt.encode({}, secret, algorithm="HS256")
+
+        decoded = jwt.decode(token, secret, algorithms=["HS256"])
+
+        assert "sub" not in decoded
+
+    def test_decode_missing_sub_but_required_claim(self, jwt):
+        secret = "your-256-bit-secret"
+        token = jwt.encode({}, secret, algorithm="HS256")
+
+        with pytest.raises(MissingRequiredClaimError):
+            jwt.decode(
+                token, secret, algorithms=["HS256"], options={"require": ["sub"]}
+            )
+
+    def test_decode_invalid_int_sub_claim(self, jwt):
+        payload = {
+            "sub": 1224344,
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        with pytest.raises(InvalidSubjectError):
+            jwt.decode(token, secret, algorithms=["HS256"])
+
+    def test_decode_with_valid_sub_claim(self, jwt):
+        payload = {
+            "sub": "user123",
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        decoded = jwt.decode(token, secret, algorithms=["HS256"], subject="user123")
+
+        assert decoded["sub"] == "user123"
+
+    def test_decode_with_invalid_sub_claim(self, jwt):
+        payload = {
+            "sub": "user123",
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        with pytest.raises(InvalidSubjectError) as exc_info:
+            jwt.decode(token, secret, algorithms=["HS256"], subject="user456")
+
+        assert "Invalid subject" in str(exc_info.value)
+
+    def test_decode_with_sub_claim_and_none_subject(self, jwt):
+        payload = {
+            "sub": "user789",
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        decoded = jwt.decode(token, secret, algorithms=["HS256"], subject=None)
+        assert decoded["sub"] == "user789"
+
+    # -------------------- JTI Claim Tests --------------------
+
+    def test_encode_decode_with_valid_jti_claim(self, jwt):
+        payload = {
+            "jti": "unique-id-456",
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+        decoded = jwt.decode(token, secret, algorithms=["HS256"])
+
+        assert decoded["jti"] == "unique-id-456"
+
+    def test_decode_missing_jti_when_required_claim(self, jwt):
+        payload = {"name": "Bob", "admin": False}
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        with pytest.raises(MissingRequiredClaimError) as exc_info:
+            jwt.decode(
+                token, secret, algorithms=["HS256"], options={"require": ["jti"]}
+            )
+
+        assert "jti" in str(exc_info.value)
+
+    def test_decode_missing_jti_claim(self, jwt):
+        secret = "your-256-bit-secret"
+        token = jwt.encode({}, secret, algorithm="HS256")
+
+        decoded = jwt.decode(token, secret, algorithms=["HS256"])
+
+        assert decoded.get("jti") is None
+
+    def test_jti_claim_with_invalid_int_value(self, jwt):
+        special_jti = 12223
+        payload = {
+            "jti": special_jti,
+        }
+        secret = "your-256-bit-secret"
+        token = jwt.encode(payload, secret, algorithm="HS256")
+
+        with pytest.raises(InvalidJTIError):
+            jwt.decode(token, secret, algorithms=["HS256"])

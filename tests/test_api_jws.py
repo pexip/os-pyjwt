@@ -3,7 +3,8 @@ from decimal import Decimal
 
 import pytest
 
-from jwt.algorithms import Algorithm, has_crypto
+from jwt.algorithms import NoneAlgorithm, has_crypto
+from jwt.api_jwk import PyJWK
 from jwt.api_jws import PyJWS
 from jwt.exceptions import (
     DecodeError,
@@ -39,10 +40,10 @@ def payload():
 
 class TestJWS:
     def test_register_algo_does_not_allow_duplicate_registration(self, jws):
-        jws.register_algorithm("AAA", Algorithm())
+        jws.register_algorithm("AAA", NoneAlgorithm())
 
         with pytest.raises(ValueError):
-            jws.register_algorithm("AAA", Algorithm())
+            jws.register_algorithm("AAA", NoneAlgorithm())
 
     def test_register_algo_rejects_non_algorithm_obj(self, jws):
         with pytest.raises(TypeError):
@@ -82,7 +83,7 @@ class TestJWS:
 
         assert jws.options["verify_signature"]
 
-    def test_options_must_be_dict(self, jws):
+    def test_options_must_be_dict(self):
         pytest.raises(TypeError, PyJWS, options=object())
         pytest.raises((TypeError, ValueError), PyJWS, options=("something"))
 
@@ -157,8 +158,19 @@ class TestJWS:
         exception = context.value
         assert str(exception) == "Invalid header string: must be a json object"
 
-    def test_encode_algorithm_param_should_be_case_sensitive(self, jws, payload):
+    def test_encode_default_algorithm(self, jws, payload):
+        msg = jws.encode(payload, "secret")
+        decoded = jws.decode_complete(msg, "secret", algorithms=["HS256"])
+        assert decoded == {
+            "header": {"alg": "HS256", "typ": "JWT"},
+            "payload": payload,
+            "signature": (
+                b"H\x8a\xf4\xdf3:\xe1\xac\x16E\xd3\xeb\x00\xcf\xfa\xd5\x05\xac"
+                b"e\xc8@\xb6\x00\xd5\xde\x9aa|s\xcfZB"
+            ),
+        }
 
+    def test_encode_algorithm_param_should_be_case_sensitive(self, jws, payload):
         jws.encode(payload, "secret", algorithm="HS256")
 
         with pytest.raises(NotImplementedError) as context:
@@ -192,6 +204,25 @@ class TestJWS:
 
         msg = jws.encode(payload, priv_key, algorithm="HS256", headers={"alg": "ES256"})
         assert b"hello world" == jws.decode(msg, pub_key, algorithms=["ES256"])
+
+    def test_encode_with_jwk(self, jws, payload):
+        jwk = PyJWK(
+            {
+                "kty": "oct",
+                "alg": "HS256",
+                "k": "c2VjcmV0",  # "secret"
+            }
+        )
+        msg = jws.encode(payload, key=jwk)
+        decoded = jws.decode_complete(msg, key=jwk, algorithms=["HS256"])
+        assert decoded == {
+            "header": {"alg": "HS256", "typ": "JWT"},
+            "payload": payload,
+            "signature": (
+                b"H\x8a\xf4\xdf3:\xe1\xac\x16E\xd3\xeb\x00\xcf\xfa\xd5\x05\xac"
+                b"e\xc8@\xb6\x00\xd5\xde\x9aa|s\xcfZB"
+            ),
+        }
 
     def test_decode_algorithm_param_should_be_case_sensitive(self, jws):
         example_jws = (
@@ -250,6 +281,59 @@ class TestJWS:
                 b"\x1ff0\xe1\x9a\x8e\xddq\x08\xa9F\x19p\xc9\xf0\xf3"
             ),
         }
+
+    def test_decodes_with_jwk(self, jws, payload):
+        jwk = PyJWK(
+            {
+                "kty": "oct",
+                "alg": "HS256",
+                "k": "c2VjcmV0",  # "secret"
+            }
+        )
+        example_jws = (
+            b"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9."
+            b"aGVsbG8gd29ybGQ."
+            b"gEW0pdU4kxPthjtehYdhxB9mMOGajt1xCKlGGXDJ8PM"
+        )
+
+        decoded_payload = jws.decode(example_jws, jwk, algorithms=["HS256"])
+
+        assert decoded_payload == payload
+
+    def test_decodes_with_jwk_and_no_algorithm(self, jws, payload):
+        jwk = PyJWK(
+            {
+                "kty": "oct",
+                "alg": "HS256",
+                "k": "c2VjcmV0",  # "secret"
+            }
+        )
+        example_jws = (
+            b"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9."
+            b"aGVsbG8gd29ybGQ."
+            b"gEW0pdU4kxPthjtehYdhxB9mMOGajt1xCKlGGXDJ8PM"
+        )
+
+        decoded_payload = jws.decode(example_jws, jwk)
+
+        assert decoded_payload == payload
+
+    def test_decodes_with_jwk_and_mismatched_algorithm(self, jws, payload):
+        jwk = PyJWK(
+            {
+                "kty": "oct",
+                "alg": "HS512",
+                "k": "c2VjcmV0",  # "secret"
+            }
+        )
+        example_jws = (
+            b"eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9."
+            b"aGVsbG8gd29ybGQ."
+            b"gEW0pdU4kxPthjtehYdhxB9mMOGajt1xCKlGGXDJ8PM"
+        )
+
+        with pytest.raises(InvalidAlgorithmError):
+            jws.decode(example_jws, jwk)
 
     # 'Control' Elliptic Curve jws created by another library.
     # Used to test for regressions that could affect both
@@ -414,6 +498,17 @@ class TestJWS:
 
         assert decoded_payload == payload
 
+    @pytest.mark.parametrize("sort_headers", (False, True))
+    def test_sorting_of_headers(self, jws, payload, sort_headers):
+        jws_message = jws.encode(
+            payload,
+            key="\xc2",
+            headers={"b": "1", "a": "2"},
+            sort_headers=sort_headers,
+        )
+        header_json = base64url_decode(jws_message.split(".")[0])
+        assert sort_headers == (header_json.index(b'"a"') < header_json.index(b'"b"'))
+
     def test_decode_invalid_header_padding(self, jws):
         example_jws = (
             "aeyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9"
@@ -467,13 +562,13 @@ class TestJWS:
         assert "Invalid crypto padding" in str(exc.value)
 
     def test_decode_with_algo_none_should_fail(self, jws, payload):
-        jws_message = jws.encode(payload, key=None, algorithm=None)
+        jws_message = jws.encode(payload, key=None, algorithm="none")
 
         with pytest.raises(DecodeError):
             jws.decode(jws_message, algorithms=["none"])
 
     def test_decode_with_algo_none_and_verify_false_should_pass(self, jws, payload):
-        jws_message = jws.encode(payload, key=None, algorithm=None)
+        jws_message = jws.encode(payload, key=None, algorithm="none")
         jws.decode(jws_message, options={"verify_signature": False})
 
     def test_get_unverified_header_returns_header_values(self, jws, payload):
@@ -523,11 +618,11 @@ class TestJWS:
 
         # string-formatted key
         with open(key_path("testkey_rsa.priv")) as rsa_priv_file:
-            priv_rsakey = rsa_priv_file.read()
+            priv_rsakey = rsa_priv_file.read()  # type: ignore[assignment]
             jws_message = jws.encode(payload, priv_rsakey, algorithm=algo)
 
         with open(key_path("testkey_rsa.pub")) as rsa_pub_file:
-            pub_rsakey = rsa_pub_file.read()
+            pub_rsakey = rsa_pub_file.read()  # type: ignore[assignment]
             jws.decode(jws_message, pub_rsakey, algorithms=[algo])
 
     def test_rsa_related_algorithms(self, jws):
@@ -572,11 +667,11 @@ class TestJWS:
 
         # string-formatted key
         with open(key_path("testkey_ec.priv")) as ec_priv_file:
-            priv_eckey = ec_priv_file.read()
+            priv_eckey = ec_priv_file.read()  # type: ignore[assignment]
             jws_message = jws.encode(payload, priv_eckey, algorithm=algo)
 
         with open(key_path("testkey_ec.pub")) as ec_pub_file:
-            pub_eckey = ec_pub_file.read()
+            pub_eckey = ec_pub_file.read()  # type: ignore[assignment]
             jws.decode(jws_message, pub_eckey, algorithms=[algo])
 
     def test_ecdsa_related_algorithms(self, jws):
