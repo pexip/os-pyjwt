@@ -1,0 +1,9 @@
+Document: pyjwt
+Title: JSON Web Token implementation in Python
+Author: Jose Padilla <hello@jpadilla.com>
+Abstract: PyJWT is a Python library which allows you to encode and decode JSON Web Tokens (JWT)
+Section: Debian
+
+Format: HTML
+Index: /usr/share/doc/python-jwt-doc/html/index.html
+Files: /usr/share/doc/python-jwt-doc/html/*.html

@@ -1,3 +1,57 @@
+pyjwt (2.10.1-2) unstable; urgency=medium
+
+  * Team upload
+  * Source only upload
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Tue, 07 Jan 2025 16:53:38 +0200
+
+pyjwt (2.10.1-1) unstable; urgency=medium
+
+  [ Dale Richards ]
+  * Team upload.
+  * New upstream version 2.8.0
+  * debian/control:
+    - Bump Standards-Version to 4.7.0, no changes needed.
+    - Add Testsuite: autopkgtest-pkg-pybuild to use upstream pytest
+      tests with autopkgtest.
+    - Remove python3-exceptiongroup and python3-tomli from
+      Build-Depends.
+    - Add <!nocheck> profile for build dependencies only required
+      for tests: python3-pytest, -pytest-cov and -pytest-runner.
+  * debian/rules:
+    - Add PYBUILD_TEST_ARGS environment variable to disable
+      tests that require an Internet connection.
+
+  [ Carsten Schoenert ]
+  * d/gbp.conf: Add some more defaults
+  * d/watch: Move to git mode with GitHub resource
+  * New upstream version 2.10.1
+  * d/u/metadata: Add Documentation entry
+  * d/*: Running wrap-and-sort -ast
+  * d/{control,rules}: Use dh-sequence-python3
+  * d/control: Add additional B-D for python-jwt-doc
+  * d/control: Add new binary package python-jwt-doc
+  * d/rules: Add new targets to build the -doc package
+  * d/rules: Also remove .mypy_cache while dh_clean
+  * d/python-jwt-doc.doc-base: Add new sequencer
+  * d/copyright: Extend and update copyright data
+  * Add patch from patch-queue branch
+    Added patch:
+    docs-Use-packaged-intersphinx-resources.patch
+  * d/control: Add Rules-Requires-Root: no
+  * d/control: Update long description bin packages
+
+ -- Carsten Schoenert <c.schoenert@t-online.de>  Sat, 04 Jan 2025 10:03:25 +0200
+
+pyjwt (2.7.0-1) unstable; urgency=medium
+
+  * New upstream version 2.7.0
+  * debian/control
+    - Bump Standards-Version to 4.6.2, no changes needed.
+    - Build with pybuild-plugin-pyproject.
+
+ -- Daniele Tricoli <eriol@debian.org>  Thu, 15 Jun 2023 05:07:16 +0200
+
 pyjwt (2.6.0-1+pexip24u1) pexip; urgency=medium
 
   * New upstream version
