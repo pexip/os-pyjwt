@@ -1,3 +1,14 @@
+pyjwt (2.10.1-2+deb13u1) trixie-security; urgency=medium
+
+  * Team upload
+  * Fix CVE-2026-32597: PyJWT did not validate the crit (Critical) Header
+    Parameter defined in RFC 7515 §4.1.11. When a JWS token contains a crit
+    array listing extensions that PyJWT does not understand, the library
+    accepts the token instead of rejecting it. This violates the MUST
+    requirement in the RFC. (Closes: #1130662)
+
+ -- Jochen Sprickerhof <jspricke@debian.org>  Tue, 28 Apr 2026 16:43:00 +0200
+
 pyjwt (2.10.1-2) unstable; urgency=medium
 
   * Team upload
